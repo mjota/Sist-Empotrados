@@ -1,0 +1,9 @@
+SEARCH_DIR("C:\Archivos de programa\Microchip\MPLAB C30\lib")
+SEARCH_DIR("C:\Archivos de programa\Microchip\MPLAB C30\support\gld")
+SEARCH_DIR("C:\pic30_tools\support\lib")
+SEARCH_DIR("C:\pic30_tools\support\gld")
+SEARCH_DIR("C:\Program Files\Microchip\MPLAB C30\lib")
+SEARCH_DIR("C:\Program Files\Microchip\MPLAB C30\support\gld")
+SEARCH_DIR("..\gld")
+INPUT(-lp30F4011-coff)
+INCLUDE iCM4011.gld
