@@ -30,6 +30,21 @@ _FGS(CODE_PROT_OFF);
 /******************************************************************************/
 /* Global Variable declaration                                                */
 /******************************************************************************/
+#define TASK_A	OSTCBP(1) 	//Tasca A
+#define TASK_B	OSTCBP(2) 	//Tasca B
+#define TASK_C	OSTCBP(3) 	//Tasca C
+
+#define PRIO_A	10		 	//Prioritat tasca A
+#define PRIO_B	10		 	//Prioritat tasca B
+#define PRIO_C	10		 	//Prioritat tasca C
+
+#define msgPumpOn	OSECBP(1)	//Encesa de la bomba
+#define msgPumpOff	OSECBP(2)	//Aturada de la bomba
+#define msgCH4Low	OSECBP(3)	//Nivell de metà baix
+#define msgAlarmOn	OSECBP(4)	//Activa l'alarma
+#define msgInfoOp	OSECBP(5)	//Informació al operador	
+
+unsigned int counter;
 
 /******************************************************************************/
 /* Interrupts                                                                 */
@@ -39,26 +54,62 @@ _FGS(CODE_PROT_OFF);
 /* Procedures                                                                 */
 /******************************************************************************/
 
-void TaskA( void )
-{
-while (1) {
-OS_Yield();
+void taskSensorLow(void){
+	/* Controla si el nivell d'aigua ha activat el sensor baix */
+	while(1){
+		OS_Yield();
+	}
 }
+
+void taskSensorHigh(void){
+	/* Controla si el nivell d'aigua ha activat el sensor alt */
 }
-void TaskB( void )
-{
-while (1) {
-OS_Yield();
+
+void taskSensorCH4(void){
+	/* Controla l'acumulació de gas metà */
 }
+
+void taskSensorCO(void){
+	/* Controla l'acumulació de monòxid de carboni */
 }
-int main( void )
-{
-IOConfig();
-OSInit();
-OSCreateTask(TaskA, OSTCBP(1), 10);
-OSCreateTask(TaskB, OSTCBP(2), 10);
-while (1) {
-OSSched();
+
+void taskSensorAirFlow(void){
+	/* Controla fluxe d'aire */
 }
+
+void taskH2OFlow(void){
+	/* Tasca que controla el correcte funcionament de la bomba */
 }
+
+void taskButtons(void){
+	/* Tasca que controla els botons de l'operador */
+}
+
+void taskAlam(void){
+	/* Encén el buzzer d'alarma */
+}
+
+void taskInfoOp(void){
+	/* Mostra per pantalla l'error rebut */
+}
+
+void taskPumpOn(void){
+	/* Activa el motor */
+}
+
+void taskPumpOff(void){
+	/* Apaga el motor */
+}
+
+int main( void ){
+	IOConfig();
+	OSInit();
+	OSCreateTask(taskPumpOn,TASK_A, PRIO_A);
+	OSCreateTask(taskPumpOff, TASK_B, PRIO_B);
+	OSCreateTask(taskSensorLow, TASK_C, PRIO_C);
+	while (1) {
+		OSSched();
+	}
+}
+
 
