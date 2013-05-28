@@ -30,6 +30,10 @@ _FGS(CODE_PROT_OFF);
 /******************************************************************************/
 /* Global Variable declaration                                                */
 /******************************************************************************/
+#define NTASK_A	taskSensorLow	//Nom Tasca-Funció A
+#define NTASK_B	taskSensorCH4	//Nom Tasca-Funció B
+#define	NTASK_C	taskSensorCO	//Nom Tasca-Funcio C
+
 #define TASK_A	OSTCBP(1) 	//Tasca A
 #define TASK_B	OSTCBP(2) 	//Tasca B
 #define TASK_C	OSTCBP(3) 	//Tasca C
@@ -41,6 +45,8 @@ _FGS(CODE_PROT_OFF);
 #define SENSOR_LOW	Buttons.SW1	//Sensor baix
 #define SENSOR_HIGH	Buttons.SW2	//Sensor alt
 #define H2O_FLOW	Buttons.SW3	//Fluxe d'aigua
+#define BUT_ACT		Buttons.SW4	//Botó activació bomba
+#define BUT_DES		Buttons.SW5	//Botó desactivació bomba
 
 #define msgPumpOn	OSECBP(1)	//Encesa de la bomba
 #define msgPumpOff	OSECBP(2)	//Aturada de la bomba
@@ -48,10 +54,14 @@ _FGS(CODE_PROT_OFF);
 #define msgAlarmOn	OSECBP(4)	//Activa l'alarma
 #define msgInfoOp	OSECBP(5)	//Informació al operador	
 
-char S_LVL = 'S';		//Activació per sensor de nivell
-char E_BOMB = 'B';		//Error de fluxe d'aigua
+char S_LVL = 'S';	//Activació/desactivació per sensor de nivell
+char S_BUT = 'O';	//Activació/desactivació per botó del operador
+char S_CH4 = '4';	//Senyal del sensor de CH4
+char S_CO = 'C';	//Senyal del sensor de CO
+char S_AIR = 'A';	//Senyal de fluxe d'aire
+char E_BOMB = 'B';	//Error de fluxe d'aigua
 
-char motorOn = 'F';		//Bomba d'aigua. Desactivada
+char motorOn = 'F';	//Bomba d'aigua. Desactivada inicialment
 
 /******************************************************************************/
 /* Interrupts                                                                 */
@@ -64,9 +74,10 @@ char motorOn = 'F';		//Bomba d'aigua. Desactivada
 void taskSensorLow(void){
 	/* Controla si el nivell d'aigua ha activat el sensor baix */
 	while(1){
+		PushButtonRead();
 		if(SENSOR_LOW == 1){
 			OSSignalMsg(msgPumpOff, (OStypeMsgP) &S_LVL);
-		} 
+		}
 		OS_Yield();
 	}
 }
@@ -74,45 +85,87 @@ void taskSensorLow(void){
 void taskSensorHigh(void){
 	/* Controla si el nivell d'aigua ha activat el sensor alt */
 	while(1){
+		PushButtonRead();
 		if(SENSOR_HIGH == 1){
 			OSSignalMsg(msgPumpOn, (OStypeMsgP) &S_LVL);
-		}			
+		}		
 		OS_Yield();
 	}
 }
 
 void taskSensorCH4(void){
 	/* Controla l'acumulació de gas metà */
-	OS_Yield();
+	unsigned int uiMeasure;
+	
+	while(1){		
+		uiMeasure = AnalogAcquireR1();
+		if(uiMeasure > 500){
+			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CH4);
+			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CH4);
+			OSSignalMsg(msgPumpOff, (OStypeMsgP) &S_CH4);
+		}else{
+			OSSignalMsg(msgCH4Low, (OStypeMsgP) &S_CH4);
+		}
+		
+		OS_Yield();
+	}
 }
 
 void taskSensorCO(void){
 	/* Controla l'acumulació de monòxid de carboni */
-	OS_Yield();
+	unsigned int uiMeasure;
+	
+	while(1){		
+		uiMeasure = AnalogAcquireR1();
+		if(uiMeasure > 700){
+			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CO);
+			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CO);
+		}		
+		OS_Yield();
+	}
 }
 
 void taskSensorAirFlow(void){
 	/* Controla fluxe d'aire */
-	OS_Yield();
+	unsigned int uiMeasure;
+	
+	while(1){		
+		uiMeasure = AnalogAcquireR1();
+		if(uiMeasure < 200){
+			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_AIR);
+			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_AIR);
+		}		
+		OS_Yield();
+	}
 }
 
 void taskH2OFlow(void){
 	/* Tasca que controla el correcte funcionament de la bomba */
-	if((motorON == 'T') && (H2O_FLOW == 0)){
+	PushButtonRead();
+	if((motorOn == 'T') && (H2O_FLOW == 0)){
 		OSSignalMsg(msgInfoOp, (OStypeMsgP) &E_BOMB);
 	}
-	if((motorON == 'F') && (H2O_FLOW == 1)){
+	if((motorOn == 'F') && (H2O_FLOW == 1)){
 		OSSignalMsg(msgInfoOp, (OStypeMsgP) &E_BOMB);
+	}	
 	OS_Yield();
 }
 
 void taskButtons(void){
 	/* Tasca que controla els botons de l'operador */
+	PushButtonRead();
+	if(BUT_ACT == 1){
+		OSSignalMsg(msgPumpOn, (OStypeMsgP) &S_BUT);
+	}	
+	if(BUT_DES == 1){
+		OSSignalMsg(msgPumpOff, (OStypeMsgP) &S_BUT);
+	}	
 	OS_Yield();
 }
 
 void taskAlam(void){
 	/* Encén el buzzer d'alarma */
+	BuzzerPlay(20, 10);
 	OS_Yield();
 }
 
@@ -133,17 +186,20 @@ void taskPumpOff(void){
 
 int main( void ){
 	IOConfig();
+	AnalogConfig();
 	OSInit();
 	
 	//Crea les 3 tasques permeses
-	OSCreateTask(taskPumpOn,TASK_A, PRIO_A);
-	OSCreateTask(taskPumpOff, TASK_B, PRIO_B);
-	OSCreateTask(taskSensorLow, TASK_C, PRIO_C);
+	OSCreateTask(NTASK_A,TASK_A, PRIO_A);
+	OSCreateTask(NTASK_B, TASK_B, PRIO_B);
+	OSCreateTask(NTASK_C, TASK_C, PRIO_C);
 	
 	//Crea els missatges
 	OSCreateMsg(msgPumpOff, (OStypeMsgP) 0);
 	OSCreateMsg(msgPumpOn, (OStypeMsgP) 0);
-	OSCreateMsg(msgInfoOp, (OStypeMsgP) 0);	
+	OSCreateMsg(msgInfoOp, (OStypeMsgP) 0);
+	OSCreateMsg(msgAlarmOn, (OStypeMsgP) 0);
+	OSCreateMsg(msgCH4Low, (OStypeMsgP) 0);	
 	
 	while (1) {
 		OSSched();
