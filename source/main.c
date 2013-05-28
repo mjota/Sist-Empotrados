@@ -1,12 +1,12 @@
     /******************************************************************************/
 /*                                                                            */
-/*  Project:     iCM4011 - Human Interface Board Template                     */
+/*  Project:     Control d'una mina						                      */
 /*  Module:                                                                   */
 /*  Description:                                                              */
 /*                                                                            */
-/*  Author:                                                                   */
+/*  Author:	Manuel Pol                                                        */
 /*                                                                            */
-/*  Revision: 1.0 (22-11-06): Initial version                                 */
+/*  Revision:                                  								  */
 /*                                                                            */
 /******************************************************************************/
 /*  ingenia-cat S.L. (c)                                                      */
@@ -59,7 +59,7 @@ char S_BUT = 'O';	//Activació/desactivació per botó del operador
 char S_CH4 = '4';	//Senyal del sensor de CH4
 char S_CO = 'C';	//Senyal del sensor de CO
 char S_AIR = 'A';	//Senyal de fluxe d'aire
-char E_BOMB = 'B';	//Error de fluxe d'aigua
+char E_BOMB = 'B';	//Senyal d'error de fluxe d'aigua
 
 char motorOn = 'F';	//Bomba d'aigua. Desactivada inicialment
 
@@ -165,29 +165,75 @@ void taskButtons(void){
 
 void taskAlam(void){
 	/* Encén el buzzer d'alarma */
-	BuzzerPlay(20, 10);
-	OS_Yield();
+	OStypeMsgP msgP;
+	
+	while(1){
+		OS_WaitMsg(msgAlarmOn, &msgP, OSNO_TIMEOUT);
+		if(*(char *)msgP == S_CH4){
+			BuzzerPlay(20, 10);
+		}
+		if(*(char *)msgP == S_CO){
+			BuzzerPlay(20, 60);
+		}
+		if(*(char *)msgP == S_AIR){
+			BuzzerPlay(20, 120);
+		}
+	}
 }
 
 void taskInfoOp(void){
-	/* Mostra per pantalla o amb LEDS l'error rebut */
-	OS_Yield();
+	/* Mostra per pantalla l'error rebut */
+	OStypeMsgP msgP;
+	
+	while(1){
+		OS_WaitMsg(msgInfoOp, &msgP, OSNO_TIMEOUT);
+		LCDGotoSecondLine();
+		if(*(char *)msgP == S_CH4){
+			LCDWriteString("CH4 elevat");
+		}
+		if(*(char *)msgP == S_CO){
+			LCDWriteString("CO elevat");
+		}
+		if(*(char *)msgP == S_AIR){
+			LCDWriteString("Fluxe d'aire");
+		}
+		if(*(char *)msgP == E_BOMB){
+			LCDWriteString("Error de bomba");
+		}
+	}
 }
 
 void taskPumpOn(void){
 	/* Activa el motor */
-	OS_Yield();
+	OStypeMsgP msgP;
+	
+	while(1){
+		OS_WaitMsg(msgPumpOn, &msgP, OSNO_TIMEOUT);
+		OS_WaitMsg(msgCH4Low, &msgP, OSNO_TIMEOUT);
+		motorOn = 'T';
+		LED1 = 1;
+	}
 }
 
 void taskPumpOff(void){
 	/* Apaga el motor */
-	OS_Yield();
+	OStypeMsgP msgP;
+	
+	while(1){
+		OS_WaitMsg(msgPumpOff, &msgP, OSNO_TIMEOUT);
+		motorOn = 'F';
+		LED1 = 0;
+	}
 }
 
 int main( void ){
+	U1MODE = 0; //Clear UART config - to avoid problems with bootloader
 	IOConfig();
 	AnalogConfig();
+	LCDConfig(0);
 	OSInit();
+	
+	LCDWriteString((char*)"Control de mina");
 	
 	//Crea les 3 tasques permeses
 	OSCreateTask(NTASK_A,TASK_A, PRIO_A);
