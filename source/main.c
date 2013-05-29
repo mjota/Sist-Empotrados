@@ -30,7 +30,7 @@ _FGS(CODE_PROT_OFF);
 /******************************************************************************/
 /* Global Variable declaration                                                */
 /******************************************************************************/
-#define NTASK_A	taskSensorHigh	//Nom Tasca-Funció A
+#define NTASK_A	taskButtons	//Nom Tasca-Funció A
 #define NTASK_B	taskSensorCH4	//Nom Tasca-Funció B
 #define	NTASK_C	taskPump		//Nom Tasca-Funcio C
 
@@ -49,8 +49,8 @@ _FGS(CODE_PROT_OFF);
 #define BUT_DES		Buttons.SW5	//Botó desactivació bomba
 
 #define msgPump	OSECBP(1)	//Encesa de la bomba
-#define msgAlarmOn	OSECBP(2)	//Activa l'alarma
-#define msgInfoOp	OSECBP(3)	//Informació al operador	
+#define msgAlarmOn	OSECBP(1)	//Activa l'alarma
+#define msgInfoOp	OSECBP(1)	//Informació al operador	
 
 char S_ON = 'O';	//Senyal de encesa del motor
 char S_OFF = 'F';	//Senyal d'aturada del motor
@@ -70,24 +70,30 @@ char lvlCH4 = 'F';	//Estat del metà. Inicialment F
 /* Procedures                                                                 */
 /******************************************************************************/
 
-void taskSensorLow(void){
-	/* Controla si el nivell d'aigua ha activat el sensor baix */
+void taskSensorLvl(void){
+	/*Controla si el nivell d'aigua ha activat els sensors*/
 	while(1){
 		PushButtonRead();
 		if(SENSOR_LOW == 1){
 			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
 		}
+		if(SENSOR_HIGH == 1){
+			OSSignalMsg(msgPump, (OStypeMsgP) &S_ON);
+		}
 		OS_Yield();
 	}
 }
 
-void taskSensorHigh(void){
-	/* Controla si el nivell d'aigua ha activat el sensor alt */
+void taskButtons(void){
+	/* Tasca que controla els botons de l'operador */
 	while(1){
 		PushButtonRead();
-		if(SENSOR_HIGH == 1){
+		if(BUT_ACT == 1){
 			OSSignalMsg(msgPump, (OStypeMsgP) &S_ON);
-		}		
+		}	
+		if(BUT_DES == 1){
+			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
+		}	
 		OS_Yield();
 	}
 }
@@ -99,16 +105,12 @@ void taskSensorCH4(void){
 	while(1){		
 		uiMeasure = AnalogAcquireR1();
 		if(uiMeasure > 500){
-			LCDGotoSecondLine();
-			LCDWriteString("Major");
 			lvlCH4 = 'T';
 			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CH4);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CH4);
-			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
+			OSSignalMsg(msgPump, (OStypeMsgP) S_OFF);
 		}
 		if(uiMeasure <= 500){
-			LCDGotoSecondLine();
-			LCDWriteString("Menor");
 			lvlCH4 = 'F';
 		}
 		
@@ -146,26 +148,16 @@ void taskSensorAirFlow(void){
 
 void taskH2OFlow(void){
 	/* Tasca que controla el correcte funcionament de la bomba */
-	PushButtonRead();
-	if((motorOn == 'T') && (H2O_FLOW == 0)){
-		OSSignalMsg(msgInfoOp, (OStypeMsgP) &E_BOMB);
+	while(1){
+		PushButtonRead();
+		if((motorOn == 'T') && (H2O_FLOW == 0)){
+			OSSignalMsg(msgInfoOp, (OStypeMsgP) &E_BOMB);
+		}
+		if((motorOn == 'F') && (H2O_FLOW == 1)){
+			OSSignalMsg(msgInfoOp, (OStypeMsgP) &E_BOMB);
+		}	
+		OS_Yield();
 	}
-	if((motorOn == 'F') && (H2O_FLOW == 1)){
-		OSSignalMsg(msgInfoOp, (OStypeMsgP) &E_BOMB);
-	}	
-	OS_Yield();
-}
-
-void taskButtons(void){
-	/* Tasca que controla els botons de l'operador */
-	PushButtonRead();
-	if(BUT_ACT == 1){
-		OSSignalMsg(msgPump, (OStypeMsgP) &S_ON);
-	}	
-	if(BUT_DES == 1){
-		OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
-	}	
-	OS_Yield();
 }
 
 void taskAlam(void){
@@ -213,13 +205,19 @@ void taskPump(void){
 	
 	while(1){
 		OS_WaitMsg(msgPump, &msgP, OSNO_TIMEOUT);
+		LCDGotoSecondLine();
+		LCDWriteString("texto");
 		if(*(char *)msgP == S_ON){
 			if(lvlCH4 == 'F'){
 			motorOn = 'T';
 			LED1 = 1;
+			LCDGotoSecondLine();
+			LCDWriteString("SI");
 			}
 		}
-		if(*(char *)msgP == S_OFF){
+		if(*(char *)msgP == &S_OFF){
+			LCDGotoSecondLine();
+			LCDWriteString("NO");
 			motorOn = 'F';
 			LED1 = 0;
 		}
@@ -236,9 +234,9 @@ int main( void ){
 	LCDWriteString((char*)"Control de mina");
 	
 	//Crea les 3 tasques permeses
-	//OSCreateTask(taskInfoOp,TASK_A, PRIO_A);
-	OSCreateTask(taskSensorCH4, TASK_B, PRIO_B);
-	//OSCreateTask(taskPump, TASK_C, PRIO_C);
+	OSCreateTask(NTASK_A,TASK_A, PRIO_A);
+	OSCreateTask(NTASK_B, TASK_B, PRIO_B);
+	OSCreateTask(NTASK_C, TASK_C, PRIO_C);
 	
 	//Crea els 3 missatges
 	OSCreateMsg(msgPump, (OStypeMsgP) 0);
