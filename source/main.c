@@ -30,9 +30,9 @@ _FGS(CODE_PROT_OFF);
 /******************************************************************************/
 /* Global Variable declaration                                                */
 /******************************************************************************/
-#define NTASK_A	taskSensorLow	//Nom Tasca-Funció A
+#define NTASK_A	taskSensorHigh	//Nom Tasca-Funció A
 #define NTASK_B	taskSensorCH4	//Nom Tasca-Funció B
-#define	NTASK_C	taskSensorCO	//Nom Tasca-Funcio C
+#define	NTASK_C	taskPump		//Nom Tasca-Funcio C
 
 #define TASK_A	OSTCBP(1) 	//Tasca A
 #define TASK_B	OSTCBP(2) 	//Tasca B
@@ -48,20 +48,19 @@ _FGS(CODE_PROT_OFF);
 #define BUT_ACT		Buttons.SW4	//Botó activació bomba
 #define BUT_DES		Buttons.SW5	//Botó desactivació bomba
 
-#define msgPumpOn	OSECBP(1)	//Encesa de la bomba
-#define msgPumpOff	OSECBP(2)	//Aturada de la bomba
-#define msgCH4Low	OSECBP(3)	//Nivell de metà baix
-#define msgAlarmOn	OSECBP(4)	//Activa l'alarma
-#define msgInfoOp	OSECBP(5)	//Informació al operador	
+#define msgPump	OSECBP(1)	//Encesa de la bomba
+#define msgAlarmOn	OSECBP(2)	//Activa l'alarma
+#define msgInfoOp	OSECBP(3)	//Informació al operador	
 
-char S_LVL = 'S';	//Activació/desactivació per sensor de nivell
-char S_BUT = 'O';	//Activació/desactivació per botó del operador
+char S_ON = 'O';	//Senyal de encesa del motor
+char S_OFF = 'F';	//Senyal d'aturada del motor
 char S_CH4 = '4';	//Senyal del sensor de CH4
 char S_CO = 'C';	//Senyal del sensor de CO
 char S_AIR = 'A';	//Senyal de fluxe d'aire
 char E_BOMB = 'B';	//Senyal d'error de fluxe d'aigua
 
-char motorOn = 'F';	//Bomba d'aigua. Desactivada inicialment
+char motorOn = 'F';		//Bomba d'aigua. Desactivada inicialment
+char lvlCH4 = 'F';	//Estat del metà. Inicialment F
 
 /******************************************************************************/
 /* Interrupts                                                                 */
@@ -76,7 +75,7 @@ void taskSensorLow(void){
 	while(1){
 		PushButtonRead();
 		if(SENSOR_LOW == 1){
-			OSSignalMsg(msgPumpOff, (OStypeMsgP) &S_LVL);
+			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
 		}
 		OS_Yield();
 	}
@@ -87,7 +86,7 @@ void taskSensorHigh(void){
 	while(1){
 		PushButtonRead();
 		if(SENSOR_HIGH == 1){
-			OSSignalMsg(msgPumpOn, (OStypeMsgP) &S_LVL);
+			OSSignalMsg(msgPump, (OStypeMsgP) &S_ON);
 		}		
 		OS_Yield();
 	}
@@ -100,11 +99,17 @@ void taskSensorCH4(void){
 	while(1){		
 		uiMeasure = AnalogAcquireR1();
 		if(uiMeasure > 500){
+			LCDGotoSecondLine();
+			LCDWriteString("Major");
+			lvlCH4 = 'T';
 			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CH4);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CH4);
-			OSSignalMsg(msgPumpOff, (OStypeMsgP) &S_CH4);
-		}else{
-			OSSignalMsg(msgCH4Low, (OStypeMsgP) &S_CH4);
+			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
+		}
+		if(uiMeasure <= 500){
+			LCDGotoSecondLine();
+			LCDWriteString("Menor");
+			lvlCH4 = 'F';
 		}
 		
 		OS_Yield();
@@ -155,10 +160,10 @@ void taskButtons(void){
 	/* Tasca que controla els botons de l'operador */
 	PushButtonRead();
 	if(BUT_ACT == 1){
-		OSSignalMsg(msgPumpOn, (OStypeMsgP) &S_BUT);
+		OSSignalMsg(msgPump, (OStypeMsgP) &S_ON);
 	}	
 	if(BUT_DES == 1){
-		OSSignalMsg(msgPumpOff, (OStypeMsgP) &S_BUT);
+		OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
 	}	
 	OS_Yield();
 }
@@ -203,26 +208,21 @@ void taskInfoOp(void){
 	}
 }
 
-void taskPumpOn(void){
-	/* Activa el motor */
+void taskPump(void){
 	OStypeMsgP msgP;
 	
 	while(1){
-		OS_WaitMsg(msgPumpOn, &msgP, OSNO_TIMEOUT);
-		OS_WaitMsg(msgCH4Low, &msgP, OSNO_TIMEOUT);
-		motorOn = 'T';
-		LED1 = 1;
-	}
-}
-
-void taskPumpOff(void){
-	/* Apaga el motor */
-	OStypeMsgP msgP;
-	
-	while(1){
-		OS_WaitMsg(msgPumpOff, &msgP, OSNO_TIMEOUT);
-		motorOn = 'F';
-		LED1 = 0;
+		OS_WaitMsg(msgPump, &msgP, OSNO_TIMEOUT);
+		if(*(char *)msgP == S_ON){
+			if(lvlCH4 == 'F'){
+			motorOn = 'T';
+			LED1 = 1;
+			}
+		}
+		if(*(char *)msgP == S_OFF){
+			motorOn = 'F';
+			LED1 = 0;
+		}
 	}
 }
 
@@ -236,16 +236,14 @@ int main( void ){
 	LCDWriteString((char*)"Control de mina");
 	
 	//Crea les 3 tasques permeses
-	OSCreateTask(NTASK_A,TASK_A, PRIO_A);
-	OSCreateTask(NTASK_B, TASK_B, PRIO_B);
-	OSCreateTask(NTASK_C, TASK_C, PRIO_C);
+	//OSCreateTask(taskInfoOp,TASK_A, PRIO_A);
+	OSCreateTask(taskSensorCH4, TASK_B, PRIO_B);
+	//OSCreateTask(taskPump, TASK_C, PRIO_C);
 	
-	//Crea els missatges
-	OSCreateMsg(msgPumpOff, (OStypeMsgP) 0);
-	OSCreateMsg(msgPumpOn, (OStypeMsgP) 0);
+	//Crea els 3 missatges
+	OSCreateMsg(msgPump, (OStypeMsgP) 0);
 	OSCreateMsg(msgInfoOp, (OStypeMsgP) 0);
 	OSCreateMsg(msgAlarmOn, (OStypeMsgP) 0);
-	OSCreateMsg(msgCH4Low, (OStypeMsgP) 0);	
 	
 	while (1) {
 		OSSched();
