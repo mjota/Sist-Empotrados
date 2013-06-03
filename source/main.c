@@ -30,9 +30,9 @@ _FGS(CODE_PROT_OFF);
 /******************************************************************************/
 /* Global Variable declaration                                                */
 /******************************************************************************/
-#define NTASK_A	taskButtons		//Nom Tasca-Funció A
-#define NTASK_B	taskSensorCH4	//Nom Tasca-Funció B
-#define	NTASK_C	taskPump		//Nom Tasca-Funcio C
+#define NTASK_A	taskInfoOp			//Nom Tasca-Funció A
+#define NTASK_B	taskSensorCO	//Nom Tasca-Funció B
+#define	NTASK_C	taskAlam			//Nom Tasca-Funcio C
 
 #define TASK_A	OSTCBP(1) 	//Tasca A
 #define TASK_B	OSTCBP(2) 	//Tasca B
@@ -48,9 +48,9 @@ _FGS(CODE_PROT_OFF);
 #define BUT_ACT		Buttons.SW4	//Botó activació bomba
 #define BUT_DES		Buttons.SW5	//Botó desactivació bomba
 
-#define msgPump		OSECBP(1)	//Encesa de la bomba
-#define msgAlarmOn	OSECBP(2)	//Activa l'alarma
-#define msgInfoOp	OSECBP(3)	//Informació al operador
+#define msgPump		OSECBP(2)	//Encesa de la bomba
+#define msgAlarmOn	OSECBP(3)	//Activa l'alarma
+#define msgInfoOp	OSECBP(1)	//Informació al operador
 
 char S_ON = 'O';	//Senyal de encesa del motor
 char S_OFF = 'F';	//Senyal d'aturada del motor
@@ -106,9 +106,9 @@ void taskSensorCH4(void){
 		uiMeasure = AnalogAcquireR1();
 		if(uiMeasure > 500){
 			lvlCH4 = 'T';
-			//OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CH4);
+			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CH4);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CH4);
-			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
+			//OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
 		}
 		if(uiMeasure <= 500){
 			lvlCH4 = 'F';
@@ -183,19 +183,21 @@ void taskInfoOp(void){
 	OStypeMsgP msgP;
 	
 	while(1){
+		LCDGotoSecondLine();
+		LCDWriteString("                ");
 		OS_WaitMsg(msgInfoOp, &msgP, OSNO_TIMEOUT);
 		LCDGotoSecondLine();
 		if(*(char *)msgP == S_CH4){
-			LCDWriteString("CH4 elevat");
+			LCDWriteString("CH4 elevat     ");
 		}
 		if(*(char *)msgP == S_CO){
-			LCDWriteString("CO elevat");
+			LCDWriteString("CO elevat       ");
 		}
 		if(*(char *)msgP == S_AIR){
-			LCDWriteString("Fluxe d'aire");
+			LCDWriteString("Fluxe d'aire    ");
 		}
 		if(*(char *)msgP == E_BOMB){
-			LCDWriteString("Error de bomba");
+			LCDWriteString("Error de bomba  ");
 		}
 	}
 }
@@ -209,13 +211,9 @@ void taskPump(void){
 			if(lvlCH4 == 'F'){
 				motorOn = 'T';
 				LED1 = 1;
-				LCDGotoSecondLine();
-				LCDWriteString("Encen");
 			}
 		}
 		if(*(char *) msgP == S_OFF){
-			LCDGotoSecondLine();
-			LCDWriteString("Apaga");
 			motorOn = 'F';
 			LED1 = 0;
 		}
