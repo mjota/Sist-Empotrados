@@ -30,7 +30,7 @@ _FGS(CODE_PROT_OFF);
 /******************************************************************************/
 /* Global Variable declaration                                                */
 /******************************************************************************/
-#define NTASK_A	taskButtons	//Nom Tasca-Funció A
+#define NTASK_A	taskButtons		//Nom Tasca-Funció A
 #define NTASK_B	taskSensorCH4	//Nom Tasca-Funció B
 #define	NTASK_C	taskPump		//Nom Tasca-Funcio C
 
@@ -48,9 +48,9 @@ _FGS(CODE_PROT_OFF);
 #define BUT_ACT		Buttons.SW4	//Botó activació bomba
 #define BUT_DES		Buttons.SW5	//Botó desactivació bomba
 
-#define msgPump	OSECBP(1)	//Encesa de la bomba
-#define msgAlarmOn	OSECBP(1)	//Activa l'alarma
-#define msgInfoOp	OSECBP(1)	//Informació al operador	
+#define msgPump		OSECBP(1)	//Encesa de la bomba
+#define msgAlarmOn	OSECBP(2)	//Activa l'alarma
+#define msgInfoOp	OSECBP(3)	//Informació al operador
 
 char S_ON = 'O';	//Senyal de encesa del motor
 char S_OFF = 'F';	//Senyal d'aturada del motor
@@ -106,9 +106,9 @@ void taskSensorCH4(void){
 		uiMeasure = AnalogAcquireR1();
 		if(uiMeasure > 500){
 			lvlCH4 = 'T';
-			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CH4);
+			//OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CH4);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CH4);
-			OSSignalMsg(msgPump, (OStypeMsgP) S_OFF);
+			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
 		}
 		if(uiMeasure <= 500){
 			lvlCH4 = 'F';
@@ -205,19 +205,17 @@ void taskPump(void){
 	
 	while(1){
 		OS_WaitMsg(msgPump, &msgP, OSNO_TIMEOUT);
-		LCDGotoSecondLine();
-		LCDWriteString("texto");
 		if(*(char *)msgP == S_ON){
 			if(lvlCH4 == 'F'){
-			motorOn = 'T';
-			LED1 = 1;
-			LCDGotoSecondLine();
-			LCDWriteString("SI");
+				motorOn = 'T';
+				LED1 = 1;
+				LCDGotoSecondLine();
+				LCDWriteString("Encen");
 			}
 		}
-		if(*(char *)msgP == &S_OFF){
+		if(*(char *) msgP == S_OFF){
 			LCDGotoSecondLine();
-			LCDWriteString("NO");
+			LCDWriteString("Apaga");
 			motorOn = 'F';
 			LED1 = 0;
 		}
@@ -241,7 +239,7 @@ int main( void ){
 	//Crea els 3 missatges
 	OSCreateMsg(msgPump, (OStypeMsgP) 0);
 	OSCreateMsg(msgInfoOp, (OStypeMsgP) 0);
-	OSCreateMsg(msgAlarmOn, (OStypeMsgP) 0);
+	//OSCreateMsg(msgAlarmOn, (OStypeMsgP) 0);
 	
 	while (1) {
 		OSSched();
