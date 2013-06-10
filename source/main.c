@@ -31,7 +31,7 @@ _FGS(CODE_PROT_OFF);
 /* Global Variable declaration                                                */
 /******************************************************************************/
 #define NTASK_A	taskInfoOp			//Nom Tasca-Funció A
-#define NTASK_B	taskSensorCO	//Nom Tasca-Funció B
+#define NTASK_B	taskSensorCO		//Nom Tasca-Funció B
 #define	NTASK_C	taskAlam			//Nom Tasca-Funcio C
 
 #define TASK_A	OSTCBP(1) 	//Tasca A
@@ -52,6 +52,8 @@ _FGS(CODE_PROT_OFF);
 #define msgAlarmOn	OSECBP(3)	//Activa l'alarma
 #define msgInfoOp	OSECBP(1)	//Informació al operador
 
+#define TIMER_PERIOD 0x8E38 //(100ms)
+
 char S_ON = 'O';	//Senyal de encesa del motor
 char S_OFF = 'F';	//Senyal d'aturada del motor
 char S_CH4 = '4';	//Senyal del sensor de CH4
@@ -66,6 +68,16 @@ char lvlCH4 = 'F';	//Estat del metà. Inicialment F
 /* Interrupts                                                                 */
 /******************************************************************************/
 
+void __attribute__((interrupt, auto_psv)) _T1Interrupt(){
+     if (IEC0bits.T1IE && IFS0bits.T1IF) {
+      WriteTimer1(0x0000);
+      IFS0bits.T1IF=0;
+      TMR1 -= TMR0_RELOAD;
+      OSTimer();
+      
+    }
+    OS_Yield();
+}
 /******************************************************************************/
 /* Procedures                                                                 */
 /******************************************************************************/
@@ -80,7 +92,7 @@ void taskSensorLvl(void){
 		if(SENSOR_HIGH == 1){
 			OSSignalMsg(msgPump, (OStypeMsgP) &S_ON);
 		}
-		OS_Yield();
+		OS_Delay(2);
 	}
 }
 
@@ -94,7 +106,7 @@ void taskButtons(void){
 		if(BUT_DES == 1){
 			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
 		}	
-		OS_Yield();
+		OS_Delay(2);
 	}
 }
 
@@ -114,7 +126,7 @@ void taskSensorCH4(void){
 			lvlCH4 = 'F';
 		}
 		
-		OS_Yield();
+		OS_Delay(1);
 	}
 }
 
@@ -128,7 +140,7 @@ void taskSensorCO(void){
 			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CO);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CO);
 		}		
-		OS_Yield();
+		OS_Delay(1);
 	}
 }
 
@@ -142,7 +154,7 @@ void taskSensorAirFlow(void){
 			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_AIR);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_AIR);
 		}		
-		OS_Yield();
+		OS_Delay(2);
 	}
 }
 
@@ -156,7 +168,7 @@ void taskH2OFlow(void){
 		if((motorOn == 'F') && (H2O_FLOW == 1)){
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &E_BOMB);
 		}	
-		OS_Yield();
+		OS_Delay(9);
 	}
 }
 
@@ -220,12 +232,26 @@ void taskPump(void){
 	}
 }
 
+void TimerConfig(){
+    OpenTimer1(T1_ON &              // Start 16-bit Timer
+               T1_IDLE_CON &        // Continue operation on idle
+               T1_GATE_OFF &        // Timer gate accumulation disabled
+               T1_PS_1_256 &        // Prescale 1:256
+               T1_SYNC_EXT_OFF &    // Do not synchronize external clock input (N/A)
+               T1_SOURCE_INT,       // Internal osc (FCY)
+               TIMER_PERIOD);       // Desired Period
+
+    ConfigIntTimer1(T1_INT_PRIOR_4 & // Interrupt Priority 4 (7 Highest)
+                    T1_INT_ON);     // Interrupt disabled
+}
+
 int main( void ){
 	U1MODE = 0; //Clear UART config - to avoid problems with bootloader
 	IOConfig();
 	AnalogConfig();
 	LCDConfig(0);
 	OSInit();
+	TimerConfig();	//Inicializa el timer
 	
 	LCDWriteString((char*)"Control de mina");
 	
