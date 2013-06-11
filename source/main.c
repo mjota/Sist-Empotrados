@@ -14,6 +14,8 @@
 #include <salvo.h>
 #include <p30f4011.h>
 #include "HIBlib.h"
+#include "timer.h"
+#include <stdlib.h>
 
 /******************************************************************************/
 /* Configuration words                                                        */
@@ -30,9 +32,13 @@ _FGS(CODE_PROT_OFF);
 /******************************************************************************/
 /* Global Variable declaration                                                */
 /******************************************************************************/
-#define NTASK_A	taskInfoOp			//Nom Tasca-Funció A
-#define NTASK_B	taskSensorCO		//Nom Tasca-Funció B
-#define	NTASK_C	taskAlam			//Nom Tasca-Funcio C
+#define NTASK_A	taskSensorCO	//Nom Tasca-Funció A
+#define NTASK_B	taskInfoOp		//Nom Tasca-Funció B
+#define	NTASK_C	taskAlarm		//Nom Tasca-Funcio C
+
+#define msgPump		OSECBP(1)	//Encesa de la bomba
+#define msgAlarmOn	OSECBP(2)	//Activa l'alarma
+#define msgInfoOp	OSECBP(3)	//Informació al operador
 
 #define TASK_A	OSTCBP(1) 	//Tasca A
 #define TASK_B	OSTCBP(2) 	//Tasca B
@@ -48,11 +54,8 @@ _FGS(CODE_PROT_OFF);
 #define BUT_ACT		Buttons.SW4	//Botó activació bomba
 #define BUT_DES		Buttons.SW5	//Botó desactivació bomba
 
-#define msgPump		OSECBP(2)	//Encesa de la bomba
-#define msgAlarmOn	OSECBP(3)	//Activa l'alarma
-#define msgInfoOp	OSECBP(1)	//Informació al operador
-
-#define TIMER_PERIOD 0x8E38 //(100ms)
+#define TIMER_PERIOD 0x2300//(100ms)
+#define TMR0_RELOAD 156
 
 char S_ON = 'O';	//Senyal de encesa del motor
 char S_OFF = 'F';	//Senyal d'aturada del motor
@@ -67,7 +70,6 @@ char lvlCH4 = 'F';	//Estat del metà. Inicialment F
 /******************************************************************************/
 /* Interrupts                                                                 */
 /******************************************************************************/
-
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(){
      if (IEC0bits.T1IE && IFS0bits.T1IF) {
       WriteTimer1(0x0000);
@@ -78,6 +80,7 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(){
     }
     OS_Yield();
 }
+
 /******************************************************************************/
 /* Procedures                                                                 */
 /******************************************************************************/
@@ -92,7 +95,7 @@ void taskSensorLvl(void){
 		if(SENSOR_HIGH == 1){
 			OSSignalMsg(msgPump, (OStypeMsgP) &S_ON);
 		}
-		OS_Delay(2);
+		OS_Yield();
 	}
 }
 
@@ -106,7 +109,7 @@ void taskButtons(void){
 		if(BUT_DES == 1){
 			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
 		}	
-		OS_Delay(2);
+		OS_Yield();
 	}
 }
 
@@ -120,13 +123,13 @@ void taskSensorCH4(void){
 			lvlCH4 = 'T';
 			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CH4);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CH4);
-			//OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
+			OSSignalMsg(msgPump, (OStypeMsgP) &S_OFF);
 		}
 		if(uiMeasure <= 500){
 			lvlCH4 = 'F';
 		}
 		
-		OS_Delay(1);
+		OS_Yield();
 	}
 }
 
@@ -140,7 +143,7 @@ void taskSensorCO(void){
 			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_CO);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_CO);
 		}		
-		OS_Delay(1);
+		OS_Yield();
 	}
 }
 
@@ -154,7 +157,7 @@ void taskSensorAirFlow(void){
 			OSSignalMsg(msgAlarmOn, (OStypeMsgP) &S_AIR);
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &S_AIR);
 		}		
-		OS_Delay(2);
+		OS_Yield();
 	}
 }
 
@@ -168,11 +171,11 @@ void taskH2OFlow(void){
 		if((motorOn == 'F') && (H2O_FLOW == 1)){
 			OSSignalMsg(msgInfoOp, (OStypeMsgP) &E_BOMB);
 		}	
-		OS_Delay(9);
+		OS_Yield();
 	}
 }
 
-void taskAlam(void){
+void taskAlarm(void){
 	/* Encén el buzzer d'alarma */
 	OStypeMsgP msgP;
 	
@@ -251,7 +254,7 @@ int main( void ){
 	AnalogConfig();
 	LCDConfig(0);
 	OSInit();
-	TimerConfig();	//Inicializa el timer
+	//TimerConfig();
 	
 	LCDWriteString((char*)"Control de mina");
 	
@@ -261,9 +264,9 @@ int main( void ){
 	OSCreateTask(NTASK_C, TASK_C, PRIO_C);
 	
 	//Crea els 3 missatges
-	OSCreateMsg(msgPump, (OStypeMsgP) 0);
+	OSCreateMsg(msgAlarmOn, (OStypeMsgP) 0);
 	OSCreateMsg(msgInfoOp, (OStypeMsgP) 0);
-	//OSCreateMsg(msgAlarmOn, (OStypeMsgP) 0);
+	OSCreateMsg(msgPump, (OStypeMsgP) 0);
 	
 	while (1) {
 		OSSched();

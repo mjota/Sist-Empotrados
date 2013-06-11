@@ -15,7 +15,7 @@ Header file for tutorial programs.
 #define OSLIBRARY_TYPE				OSF
 #define OSLIBRARY_CONFIG			OST
 
-#define OSEVENTS					2
+#define OSEVENTS					3
 #define OSEVENT_FLAGS				0
 #define OSMESSAGE_QUEUES			0
 #define OSTASKS                     3
